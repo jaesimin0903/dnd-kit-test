@@ -1,37 +1,24 @@
 import React, { useState } from "react";
-import { DndContext, useDraggable, useDroppable, DragOverlay } from "@dnd-kit/core";
+import { DndContext, useDraggable, useDroppable, DragOverlay,MouseSensor  ,useSensor, useSensors } from "@dnd-kit/core";
+import image from "./assets/empty-diary.png"
+import d1 from "./assets/d1.png"
+import d2 from "./assets/d2.png"
+import d3 from "./assets/d3.png"
+import d4 from "./assets/d4.png"
+import d5 from "./assets/d5.png"
+import d6 from "./assets/d6.png"
+import DragSizeExample from "./components/dragAndResizeBtn"
+import DraggableItem from "./components/DraggableItem"
 import { CSS } from "@dnd-kit/utilities";
 
 const generateId = () => `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-const DraggableItem = ({ id, x, y, children, isDragging }) => {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id });
-
-  const style = {
-    position: x !== undefined && y !== undefined ? "absolute" : "static",
-    left: x !== undefined ? `${x}px` : undefined,
-    top: y !== undefined ? `${y}px` : undefined,
-    cursor: "grab",
-    padding: "10px",
-    border: "1px solid #ccc",
-    background: "lightblue",
-    boxSizing: "border-box",
-    visibility: isDragging ? "hidden" : "visible", // 드래그 중이면 숨기기
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-      {children}
-    </div>
-  );
-};
 
 const Droppable = ({ id, children }) => {
   const { setNodeRef } = useDroppable({ id });
 
   const style = {
     width: "100%",
-    height: "500px",
+    height: "100%",
     border: "2px dashed #ccc",
     position: "relative",
     overflow: "hidden",
@@ -39,6 +26,18 @@ const Droppable = ({ id, children }) => {
 
   return (
     <div ref={setNodeRef} style={style}>
+      <img
+        src={image}
+        alt="Empty Diary"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "fill",
+          position: "absolute",
+          top: 0,
+          left: 0,
+        }}
+      />
       {children}
     </div>
   );
@@ -46,39 +45,45 @@ const Droppable = ({ id, children }) => {
 
 const App = () => {
   const [droppedItems, setDroppedItems] = useState([]);
-  const [activeItem, setActiveItem] = useState(null); // 현재 드래그 중인 아이템 정보
+  const [activeItem, setActiveItem] = useState(null);
+  const [resizingItem, setResizingItem] = useState(null);
+  const sensors = useSensors( useSensor(MouseSensor,{
+    activationConstraint:{distance:10}
+  }));
 
   const handleDragStart = (event) => {
-    setActiveItem(event.active.id); // 드래그 시작 시 활성화된 아이템의 ID 저장
+    setActiveItem(event.active.id);
   };
 
   const handleDragEnd = (event) => {
-    const { over, active } = event;
-
-    setActiveItem(null); // 드래그 중인 아이템 해제
-
+    const { over, active, delta } = event;
+    setActiveItem(null);
+  
     if (over?.id === "droppable-area") {
-      const rect = over.rect;
-      const x = active.rect.current.translated.left - rect.left;
-      const y = active.rect.current.translated.top - rect.top;
-
+      const imgSrc = active.data?.current?.imgSrc || "";
+  
       setDroppedItems((items) => {
         const existingItemIndex = items.findIndex((item) => item.id === active.id);
-
+  
         if (existingItemIndex !== -1) {
-          // 기존 요소 위치 업데이트
           const updatedItems = [...items];
-          updatedItems[existingItemIndex] = { ...updatedItems[existingItemIndex], x, y };
+          updatedItems[existingItemIndex] = {
+            ...updatedItems[existingItemIndex],
+            x: updatedItems[existingItemIndex].x + delta.x,
+            y: updatedItems[existingItemIndex].y + delta.y,
+          };
           return updatedItems;
         } else {
-          // 새 요소 추가
           return [
             ...items,
             {
               id: generateId(),
-              componentId: active.id,
-              x,
-              y,
+              imgSrc,
+              x: delta.x,
+              y: delta.y,
+              zIndex: items.length,
+              width: 100,
+              height: 100,
             },
           ];
         }
@@ -89,50 +94,49 @@ const App = () => {
   const renderDroppedItems = () =>
     droppedItems.map((item) => (
       <DraggableItem
-        key={item.id}
-        id={item.id}
-        x={item.x}
-        y={item.y}
-        isDragging={activeItem === item.id} // 현재 드래그 중인지 확인
-      >
-        {item.componentId}
-      </DraggableItem>
+        key={item.id} // 고유 키 설정
+        id={item.id} // DraggableItem의 id
+        initX="100px"
+        initY="100px"
+        zIndex={item.zIndex}
+        x={item.x} // 초기 너비
+        y={item.y} // 초기 높이
+        imgSrc={item.imgSrc} // 이미지 소스
+      />
     ));
+  
 
   return (
-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
-        {/* 외부에서 드래그 가능한 원본 요소 */}
-        <DraggableItem id="Item 1" isDragging={activeItem === "Item 1"}>
-          Item 1
-        </DraggableItem>
-        <DraggableItem id="Item 2" isDragging={activeItem === "Item 2"}>
-          Item 2
-        </DraggableItem>
-        <DraggableItem id="Item 3" isDragging={activeItem === "Item 3"}>
-          Item 3
-        </DraggableItem>
-      </div>
+    <>
+    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} sensors={sensors}>
+  <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+    <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
+      <DraggableItem id="Item 1" imgSrc={d1} initX={100} initY={100} />
+      <DraggableItem id="Item 2" imgSrc={d2} initX={100} initY={100}  />
+      <DraggableItem id="Item 3" imgSrc={d3} initX={100} initY={100}  />
+      <DraggableItem id="Item 4" imgSrc={d4} initX={100} initY={100}  />
+      <DraggableItem id="Item 5" imgSrc={d5} initX={100} initY={100}  />
+      <DraggableItem id="Item 6" imgSrc={d6} initX={100} initY={100}  />
 
-      {/* Droppable 컴포넌트 */}
-      <Droppable id="droppable-area">{renderDroppedItems()}</Droppable>
+    </div>
+    <Droppable id="droppable-area">{renderDroppedItems()}</Droppable>
+  </div>
 
-      {/* DragOverlay로 드래그 미러링 요소 스타일 제어 */}
-      <DragOverlay>
-        {activeItem ? (
-          <div
-            style={{
-              padding: "10px",
-              border: "1px solid #ccc",
-              background: "lightblue",
-              boxSizing: "border-box",
-            }}
-          >
-            {activeItem} {/* 드래그 중 텍스트 표시 */}
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+  <DragOverlay>
+    {activeItem ? (
+      <img
+        src={null}
+        alt="Drag Preview"
+        style={{
+          width: "100px",
+          height: "100px",
+          objectFit: "cover",
+        }}
+      />
+    ) : null}
+  </DragOverlay>
+</DndContext>;
+    </>
   );
 };
 
